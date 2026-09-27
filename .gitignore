@@ -9,8 +9,8 @@
 
 # Node modules and dependency files
 /node_modules/
-/package-lock.json
 /yarn.lock
+/.npm-cache/
 
 # Environment files
 /.env

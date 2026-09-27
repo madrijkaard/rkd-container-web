@@ -1,0 +1,44 @@
+services:
+  frontend:
+    build: .
+    restart: unless-stopped
+    networks:
+      rkd-network:
+        aliases:
+          - rkd-frontend
+
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile.proxy
+    restart: unless-stopped
+    depends_on:
+      - frontend
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./volumes/nginx/acme:/var/www/certbot:ro
+      - ./volumes/nginx/letsencrypt:/etc/letsencrypt:ro
+    networks:
+      - rkd-network
+
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    init: true
+    entrypoint: ['/bin/sh', '/rkd/certbot.sh']
+    env_file: .env
+    depends_on:
+      - nginx
+    volumes:
+      - ./volumes/nginx/certbot.sh:/rkd/certbot.sh:ro
+      - ./volumes/nginx/acme:/var/www/certbot
+      - ./volumes/nginx/letsencrypt:/etc/letsencrypt
+    networks:
+      - rkd-network
+
+networks:
+  rkd-network:
+    external: true
+    name: rkd-network

@@ -1,0 +1,9 @@
+.git/
+node_modules/
+dist/
+.angular/
+.env
+.env.*
+!.env.example
+volumes/nginx/acme/
+volumes/nginx/letsencrypt/
