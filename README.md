@@ -37,23 +37,45 @@ Open `http://localhost:4200/` and log in with a Django staff account created wit
 
 ## Deploy on the Ubuntu VPS with Docker Compose
 
-This repository has a separate `docker-compose.yml`. It starts a static Angular frontend container, an Nginx gateway container, and a Certbot container for HTTPS certificate issuance and renewal. The Nginx gateway serves `https://sinan-pro.com`, forwards `/api/`, `/admin/`, and `/static/` to the backend container, and forwards other paths to the frontend. Both Compose projects join the `rkd-network` created by the backend Compose project.
+Este repositório tem um `docker-compose.yml` separado. Ele inicia três containers: frontend Angular estático, Nginx (porta de entrada HTTP/HTTPS) e Certbot (emissão e renovação do certificado). Os três entram na rede `rkd-network` criada pelo Compose do backend. O Nginx envia `/api/`, `/admin/` e `/static/` ao backend e as demais rotas ao frontend.
 
-Before starting, point the `sinan-pro.com` DNS A record at the VPS public IPv4 address, open inbound TCP ports 80 and 443, and ensure no other service binds those ports. HTTP port 80 is needed for Let's Encrypt's HTTP challenge. Clone the backend and frontend repositories, start the backend Compose project first, then in this frontend checkout:
+### Pré-requisitos na VPS
+
+1. Ubuntu com SSH, Git, Docker Engine e plugin Docker Compose funcionando. Consulte a [instalação oficial do Docker no Ubuntu](https://docs.docker.com/engine/install/ubuntu/) e do [Compose](https://docs.docker.com/compose/install/linux/). Verifique com `sudo docker version` e `sudo docker compose version`. Node.js, npm, Nginx e Certbot **não precisam** ser instalados diretamente na VPS: eles são usados nos containers.
+2. Clone de `rkd-container-core` e `rkd-container-web` na VPS. Configure acesso Git antes do clone se algum repositório da aplicação for privado. Inicie [o backend primeiro](https://github.com/madrijkaard/rkd-container-core#deploy-on-the-ubuntu-vps-with-docker-compose), incluindo seu `.env` com `DJANGO_SECRET_KEY`, `TURNSTILE_SITE_KEY` e `TURNSTILE_SECRET_KEY`. Confirme que `sudo docker network inspect rkd-network` funciona.
+3. DNS A de **`sinan-pro.com`** apontando para o IPv4 público da VPS; se existir AAAA, use apenas um IPv6 que chegue à mesma VPS. TCP 80 e 443 liberados no firewall e no painel da Hostinger, sem outro serviço usando essas portas. A VPS precisa de saída para os servidores do Let's Encrypt. O Certbot usa a porta 80 para validar o domínio; enquanto o certificado não estiver pronto, o Nginx ainda não servirá o login por HTTPS.
+4. [Widget Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/get-started/widget-management/dashboard/) com hostname `sinan-pro.com` já criado. Configure as duas chaves no `.env` do backend; este frontend recebe a Site key pública pela API. A Secret key permanece apenas no backend e nunca deve ser colocada neste repositório ou neste Compose. Não é necessário migrar o DNS para a Cloudflare para usar o widget.
+5. Um endereço de email válido que você controla para o registro e os avisos do certificado Let's Encrypt (`ACME_EMAIL`).
+
+### Instalação inicial do frontend
+
+Depois que o backend estiver no ar, execute no diretório `rkd-container-web` da VPS:
 
 ```bash
 cp .env.example .env
-# Set ACME_EMAIL in .env to an email address you control.
-docker compose up -d --build
-docker compose ps
-docker compose logs -f certbot nginx
+nano .env
+chmod 600 .env
+sudo docker compose config --quiet
+sudo docker compose up -d --build
+sudo docker compose ps
+sudo docker compose logs -f certbot nginx
 ```
 
-Nginx initially answers HTTP with a temporary status page while Certbot obtains a certificate. When certificate files appear, it enables HTTPS automatically; renewal is checked twice daily, and Nginx reloads when the certificate changes. Certificate state is persisted under `volumes/nginx/letsencrypt/`; HTTP challenge files use `volumes/nginx/acme/`. These runtime directories are ignored by Git. Do not delete them during updates. To inspect the result, open `https://sinan-pro.com/` and sign in with a Django staff user created in the backend database.
+Preencha o arquivo `.env` com o email, por exemplo `ACME_EMAIL=voce@seu-dominio.com`. Esse é o único valor necessário neste `.env`; a Site key e a Secret key do Turnstile já foram configuradas no backend. Saia do acompanhamento de logs com `Ctrl+C` sem parar os containers.
 
-This configuration serves only `sinan-pro.com`. To use `www.sinan-pro.com`, add that hostname to the certificate, Nginx configuration, backend allowed hostnames, and Cloudflare Turnstile widget.
+Quando o Certbot gravar o certificado em `volumes/nginx/letsencrypt/`, o Nginx habilita HTTPS automaticamente. Os arquivos temporários de validação ficam em `volumes/nginx/acme/`; ambos os diretórios são persistidos na VPS e ignorados pelo Git. Não os apague em atualizações. Verifique:
 
-The login form displays Cloudflare Turnstile when the backend exposes a configured site key. Configure `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, and optionally `TURNSTILE_ALLOWED_HOSTNAMES` on Container Core as described in its README. No Turnstile secret belongs in the frontend. Production login is unavailable until both keys are configured.
+```bash
+curl -I https://sinan-pro.com/
+sudo docker compose ps
+sudo docker compose logs --tail=100 certbot nginx
+```
+
+Abra **`https://sinan-pro.com/`** no navegador. O login deve mostrar o Turnstile; entre com uma conta `staff` criada no banco do backend (`sudo docker compose exec backend python manage.py createsuperuser`, executado **no diretório do backend**). O banco da VPS começa vazio; os usuários cadastrados apenas na máquina de desenvolvimento não aparecem automaticamente.
+
+Se o certificado não for emitido, confira o DNS, a liberação da porta 80 e os logs do Certbot. Se o login indicar falha no CAPTCHA, confirme o hostname do widget e as duas chaves no `.env` do backend; depois recrie o container do backend com `sudo docker compose up -d --force-recreate` no diretório dele. Em produção, o login exige as duas chaves.
+
+Ao atualizar este frontend, execute `git pull` e `sudo docker compose up -d --build` neste diretório. A configuração atual atende apenas `sinan-pro.com`; para usar `www.sinan-pro.com`, acrescente esse hostname ao certificado, ao Nginx, ao backend e ao widget Turnstile.
 
 ## Verify
 
