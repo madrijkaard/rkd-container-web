@@ -1,0 +1,27 @@
+name: rkd-web-local
+
+services:
+  frontend:
+    build: .
+    restart: unless-stopped
+    networks:
+      rkd-local-network:
+        aliases:
+          - rkd-frontend
+
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile.proxy.local
+    restart: unless-stopped
+    depends_on:
+      - frontend
+    ports:
+      - '127.0.0.1:8080:80'
+    networks:
+      - rkd-local-network
+
+networks:
+  rkd-local-network:
+    external: true
+    name: rkd-local-network

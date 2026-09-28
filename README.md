@@ -35,6 +35,34 @@ npm start
 
 Open `http://localhost:4200/` and log in with a Django staff account created with `manage.py createsuperuser` or through the Django admin. The development server proxies `/api/` requests to Django using `proxy.conf.json`. For deployment, serve the app over HTTPS and forward the same path to Container Core.
 
+## Testar localmente com Docker
+
+Use Docker Desktop no modo **containers Linux**, com Docker Compose disponível. Para executar o script Bash do backend no Windows, use Ubuntu/WSL com a [integração Docker](https://docs.docker.com/desktop/features/wsl/) habilitada; prefira os clones no sistema de arquivos Linux do WSL.
+
+Primeiro, no diretório `rkd-container-core`, prepare a chave e inicie o backend:
+
+```bash
+bash configure-secret-key.sh --generate-only
+docker compose -f docker-compose.local.yml up -d --build --wait
+docker compose -f docker-compose.local.yml exec backend python manage.py createsuperuser --username RKD
+```
+
+A geração da chave não depende de um backend existente: ela salva o valor no `.env` antes da criação do container. O Compose fornece a variável ao backend. O comando `bash configure-secret-key.sh --local` também pode gerar/preservar a chave e iniciar o backend em um único passo. Crie o usuário somente na primeira instalação.
+
+Depois, neste diretório do frontend:
+
+```bash
+docker compose -f docker-compose.local.yml up -d --build
+docker compose -f docker-compose.local.yml ps
+docker compose -f docker-compose.local.yml logs -f nginx
+```
+
+Abra **http://localhost:8080/**. O Compose local inicia frontend e Nginx, conectados à rede `rkd-local-network` criada pelo backend. Nginx usa `volumes/nginx/local.conf` e encaminha as chamadas `/api/` ao backend. A porta 8080 fica vinculada apenas à interface local da máquina. Não é necessário configurar `ACME_EMAIL`, certificado, DNS ou um `.env` do frontend para esse modo.
+
+O backend local roda em desenvolvimento, com Turnstile desativado e cookies compatíveis com HTTP. Isso permite testar login, cadastros, branches e criação de containers no Docker local; o CAPTCHA e HTTPS de produção continuam no Compose da VPS. O banco local persiste em `rkd-container-core/volumes/sqlite/container_core.local.sqlite3`, com usuários próprios.
+
+Use sempre `-f docker-compose.local.yml` para subir, consultar ou parar esse ambiente. O Compose sem `-f` continua sendo a implantação para `sinan-pro.com` na VPS. Para parar os containers locais do frontend, execute `docker compose -f docker-compose.local.yml stop`; para parar o backend, execute o mesmo comando no diretório dele.
+
 ## Deploy on the Ubuntu VPS with Docker Compose
 
 Este repositório tem um `docker-compose.yml` separado. Ele inicia três containers: frontend Angular estático, Nginx (porta de entrada HTTP/HTTPS) e Certbot (emissão e renovação do certificado). Os três entram na rede `rkd-network` criada pelo Compose do backend. O Nginx envia `/api/`, `/admin/` e `/static/` ao backend e as demais rotas ao frontend.
