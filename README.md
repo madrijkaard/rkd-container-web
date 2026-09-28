@@ -43,7 +43,8 @@ Primeiro, no diretório `rkd-container-core`, prepare a chave e inicie o backend
 
 ```bash
 bash configure-secret-key.sh --generate-only
-docker compose -f docker-compose.local.yml up -d --build --wait
+docker build -t rkd-core-local-backend:latest .
+docker compose -f docker-compose.local.yml up -d --no-build --wait
 docker compose -f docker-compose.local.yml exec backend python manage.py createsuperuser --username RKD
 ```
 
@@ -52,16 +53,26 @@ A geração da chave não depende de um backend existente: ela salva o valor no 
 Depois, neste diretório do frontend:
 
 ```bash
-docker compose -f docker-compose.local.yml up -d --build
+docker build -t rkd-web-local-frontend:latest .
+docker build -t rkd-web-local-nginx:latest -f Dockerfile.proxy.local .
+docker compose -f docker-compose.local.yml up -d --no-build
 docker compose -f docker-compose.local.yml ps
 docker compose -f docker-compose.local.yml logs -f nginx
 ```
 
 Abra **http://localhost:8080/**. O Compose local inicia frontend e Nginx, conectados à rede `rkd-local-network` criada pelo backend. Nginx usa `volumes/nginx/local.conf` e encaminha as chamadas `/api/` ao backend. A porta 8080 fica vinculada apenas à interface local da máquina. Não é necessário configurar `ACME_EMAIL`, certificado, DNS ou um `.env` do frontend para esse modo.
 
+No Windows, separar `docker build` de `docker compose up --no-build` evita um possível erro de renomeação de arquivo temporário de metadados do Compose/Bake (`Identificador inválido`). Os nomes das imagens nos comandos correspondem aos definidos no Compose local.
+
 O backend local roda em desenvolvimento, com Turnstile desativado e cookies compatíveis com HTTP. Isso permite testar login, cadastros, branches e criação de containers no Docker local; o CAPTCHA e HTTPS de produção continuam no Compose da VPS. O banco local persiste em `rkd-container-core/volumes/sqlite/container_core.local.sqlite3`, com usuários próprios.
 
 Use sempre `-f docker-compose.local.yml` para subir, consultar ou parar esse ambiente. O Compose sem `-f` continua sendo a implantação para `sinan-pro.com` na VPS. Para parar os containers locais do frontend, execute `docker compose -f docker-compose.local.yml stop`; para parar o backend, execute o mesmo comando no diretório dele.
+
+### Certificados de proxy ou antivírus durante o build
+
+Se `npm ci` ou o build falhar com um erro de certificado autoassinado, adicione em `docker/certificates/` a CA pública em PEM, com extensão `.crt`, usada pela inspeção HTTPS e já confiável no Windows. A identificação e exportação estão descritas no README do backend. Esses arquivos são ignorados pelo Git.
+
+Quando há certificados extras, o Dockerfile os fornece ao Node.js com [NODE_EXTRA_CA_CERTS](https://nodejs.org/api/cli.html#node_extra_ca_certsfile) durante a instalação e o build. A verificação TLS continua ativa e as CAs públicas padrão continuam disponíveis. Sem certificados extras, o build usa a confiança padrão do Node.js. Para reconstruir localmente, repita os dois comandos `docker build` acima e execute `docker compose -f docker-compose.local.yml up -d --no-build`.
 
 ## Deploy on the Ubuntu VPS with Docker Compose
 

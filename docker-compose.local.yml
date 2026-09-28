@@ -2,6 +2,7 @@ name: rkd-web-local
 
 services:
   frontend:
+    image: rkd-web-local-frontend:latest
     build: .
     restart: unless-stopped
     networks:
@@ -10,6 +11,7 @@ services:
           - rkd-frontend
 
   nginx:
+    image: rkd-web-local-nginx:latest
     build:
       context: .
       dockerfile: Dockerfile.proxy.local

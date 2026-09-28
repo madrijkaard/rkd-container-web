@@ -2,6 +2,11 @@
 node_modules/
 dist/
 .angular/
+.npm-cache/
+.vscode/
+.codex/
+.agents/
+tmp/
 .env
 .env.*
 !.env.example
