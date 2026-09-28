@@ -37,7 +37,7 @@ Open `http://localhost:4200/` and log in with a Django staff account created wit
 
 ## Testar localmente com Docker
 
-Use Docker Desktop no modo **containers Linux**, com Docker Compose disponível. Para executar o script Bash do backend no Windows, use Ubuntu/WSL com a [integração Docker](https://docs.docker.com/desktop/features/wsl/) habilitada; prefira os clones no sistema de arquivos Linux do WSL.
+Use Docker Desktop no modo **containers Linux**, com Docker Compose disponível. O script do backend pode gerar a chave pelo **Git Bash no Windows** (com OpenSSL disponível) ou pelo Ubuntu/WSL com a [integração Docker](https://docs.docker.com/desktop/features/wsl/) habilitada. Os comandos Compose também funcionam no PowerShell. Para melhor compatibilidade de permissões e volumes, prefira os clones no sistema de arquivos Linux do WSL.
 
 Primeiro, no diretório `rkd-container-core`, prepare a chave e inicie o backend:
 
