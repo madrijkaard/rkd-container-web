@@ -7,7 +7,7 @@ import { of } from 'rxjs';
 import { ProjectSetupsPage } from './project-setups-page';
 
 describe('ProjectSetupsPage', () => {
-  it('lists the project setups and announces when Docker is unavailable', async () => {
+  it('lists setups and links to their instance management on the detail page', async () => {
     await TestBed.configureTestingModule({
       imports: [ProjectSetupsPage],
       providers: [
@@ -33,13 +33,7 @@ describe('ProjectSetupsPage', () => {
     expect(page.querySelector('tbody')?.textContent).toContain('DEV');
     expect(page.querySelector('tbody a')?.getAttribute('href')).toBe('/setups/12');
 
-    (page.querySelector('tbody button') as HTMLButtonElement).click();
-    http.expectOne('/api/setups/12/containers/').flush(
-      { code: 'docker_unavailable', error: 'Docker is unavailable.' },
-      { status: 503, statusText: 'Service Unavailable' },
-    );
-    fixture.detectChanges();
-    expect(page.querySelector('[role="alert"]')?.textContent).toContain('O Docker está desligado');
+    expect(page.querySelector('tbody button')).toBeNull();
     http.verify();
   });
 });

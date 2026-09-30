@@ -12,6 +12,20 @@ import {
 import { CodeInputDirective, normalizeCode } from './code-input.directive';
 import { UppercaseInputDirective, uppercaseDescription } from './uppercase-input.directive';
 
+export function imageCodeFromRepository(repository: string): string {
+  try {
+    const url = new URL(repository.trim());
+    const parts = url.pathname.split('/').filter(Boolean);
+    if (url.protocol !== 'https:' || url.hostname !== 'github.com' || url.port || url.username
+        || url.password || url.search || url.hash
+        || parts.length !== 2) return '';
+    const name = parts[1].replace(/\.git$/i, '');
+    return normalizeCode(name.replace(/[^A-Za-z0-9_]/g, '_'));
+  } catch {
+    return '';
+  }
+}
+
 @Component({
   selector: 'app-record-form-page',
   imports: [CodeInputDirective, UppercaseInputDirective, FormsModule, RouterLink],
@@ -41,6 +55,9 @@ import { UppercaseInputDirective, uppercaseDescription } from './uppercase-input
     } @else if (loadError()) {
       <p class="status error" role="alert">{{ loadError() }}</p>
       <a class="button" routerLink="/projects">Voltar aos projetos</a>
+    } @else if (editBlocked()) {
+      <p class="status" role="status">Este setup não pode ser editado enquanto tiver instâncias. Exclua todas as instâncias para liberar a edição.</p>
+      <a class="button" [routerLink]="cancelUrl()">Voltar ao setup</a>
     } @else {
       <form class="panel record-form" #recordForm="ngForm" (ngSubmit)="save()">
         @for (field of formFields; track field.key) {
@@ -50,11 +67,13 @@ import { UppercaseInputDirective, uppercaseDescription } from './uppercase-input
               <input
                 appCodeInput [id]="field.key" [name]="field.key" [(ngModel)]="form[field.key]"
                 [attr.maxlength]="field.maxLength ?? null" pattern="[A-Z0-9_]+"
+                [disabled]="automaticSetupCode || automaticImageCode()"
                 autocapitalize="characters" autocomplete="off" spellcheck="false" required
               />
             } @else if (field.key === 'description') {
               <input
                 appUppercaseInput [id]="field.key" [name]="field.key" [(ngModel)]="form[field.key]"
+                (ngModelChange)="descriptionChanged()"
                 [attr.maxlength]="field.maxLength ?? null" required
               />
             } @else if (field.key === 'repository') {
@@ -98,6 +117,7 @@ import { UppercaseInputDirective, uppercaseDescription } from './uppercase-input
               <div class="field-control-row">
                 <select
                   [id]="field.key" [name]="field.key" [(ngModel)]="form[field.key]"
+                  (ngModelChange)="setupResourceChanged(field.key, $event)"
                   [disabled]="cpuLoading()" [attr.aria-describedby]="cpuHelpOpen() ? 'cpu-help' : null"
                   required
                 >
@@ -132,6 +152,7 @@ import { UppercaseInputDirective, uppercaseDescription } from './uppercase-input
               <div class="field-control-row">
                 <select
                   [id]="field.key" [name]="field.key" [(ngModel)]="form[field.key]"
+                  (ngModelChange)="setupResourceChanged(field.key, $event)"
                   [disabled]="memoryLoading()" [attr.aria-describedby]="memoryHelpOpen() ? 'memory-help' : null"
                   required
                 >
@@ -165,13 +186,26 @@ import { UppercaseInputDirective, uppercaseDescription } from './uppercase-input
             } @else {
               <input
                 [id]="field.key" [name]="field.key" [(ngModel)]="form[field.key]"
+                (ngModelChange)="setupResourceChanged(field.key, $event)"
                 [attr.maxlength]="field.maxLength ?? null" [required]="!field.optional"
               />
             }
             @if (field.key === 'code') {
-              <small>Somente letras maiúsculas, números e _; sem espaços. Máximo de 100 caracteres.</small>
+              @if (automaticSetupCode) {
+                <small>Gerado automaticamente ao preencher CPU, memória e porta.</small>
+              } @else if (automaticImageCode()) {
+                <small>Gerado automaticamente a partir do nome do repositório GitHub.</small>
+              } @else {
+                <small>Somente letras maiúsculas, números e _; sem espaços. Máximo de 100 caracteres.</small>
+              }
             } @else if (field.key === 'description') {
-              <small>Texto livre, convertido para maiúsculas. Máximo de 256 caracteres.</small>
+              @if (kind === 'images' && descriptionLoading()) {
+                <small>Consultando a descrição do repositório no GitHub...</small>
+              } @else if (kind === 'images' && descriptionNotice()) {
+                <small role="status">{{ descriptionNotice() }}</small>
+              } @else {
+                <small>{{ kind === 'images' ? 'Preenchida a partir do About do GitHub; você pode editá-la. ' : '' }}Texto livre, convertido para maiúsculas. Máximo de 256 caracteres.</small>
+              }
             } @else if (field.key === 'repository') {
               <small>Opcional. URL do GitHub. Ex.: https://github.com/madrijkaard/rkd-survivor-engine.</small>
             } @else if (field.key === 'isPrivate') {
@@ -203,7 +237,7 @@ import { UppercaseInputDirective, uppercaseDescription } from './uppercase-input
                 <small class="field-error" role="alert">O valor anterior é inválido ou excede o limite atual. Selecione outro valor.</small>
               }
             } @else if (field.key === 'port') {
-              <small>Opcional. Porta do host:porta do container. Ex.: 8000:8000. Sem IP, publica apenas em 127.0.0.1.</small>
+              <small>Opcional. Porta inicial do host:porta do container. Ex.: 8000:8000. As réplicas usam 8000, 8001, 8002… no host. Sem IP, publica em 127.0.0.1.</small>
             } @else if (field.key === 'volume') {
               <small>Opcional. Volume nomeado:caminho no container. Ex.: backend_data:/data.</small>
             } @else if (field.maxLength) {
@@ -234,9 +268,12 @@ export class RecordFormPage implements OnInit {
   private savedRepository = '';
   private savedHasToken = false;
   private editingImageId: number | undefined;
+  private descriptionRepository = '';
+  private descriptionEdited = false;
 
   protected readonly kind = this.route.snapshot.data['kind'] as ResourceKind;
   protected readonly isEdit = this.route.snapshot.data['mode'] === 'edit';
+  protected readonly automaticSetupCode = this.kind === 'setups';
   protected readonly config = RESOURCE_CONFIG[this.kind];
   protected readonly RESOURCE_CONFIG = RESOURCE_CONFIG;
   protected readonly detailUrl = detailUrl;
@@ -250,10 +287,13 @@ export class RecordFormPage implements OnInit {
   protected readonly loading = signal(false);
   protected readonly saving = signal(false);
   protected readonly loadError = signal('');
+  protected readonly editBlocked = signal(false);
   protected readonly saveError = signal('');
   protected readonly branchLoading = signal(false);
   protected readonly branchError = signal('');
   protected readonly branchOptions = signal<string[]>([]);
+  protected readonly descriptionLoading = signal(false);
+  protected readonly descriptionNotice = signal('');
   protected readonly cpuLoading = signal(false);
   protected readonly maxCpu = signal(0);
   protected readonly cpuSource = signal<'docker' | 'host'>('host');
@@ -287,6 +327,24 @@ export class RecordFormPage implements OnInit {
         this.form['branch'] = branches.includes(selectedBranch) ? selectedBranch : '';
         this.branchLoading.set(false);
       });
+      this.repositoryChanges.pipe(
+        switchMap(({ repository, token, imageId, missingToken }) => !repository || missingToken
+          ? of({ description: '', error: missingToken ? 'Informe o token para consultar a descrição.' : '' })
+          : timer(350).pipe(
+              switchMap(() => this.api.getGithubDescription(repository, token, imageId)),
+              map(({ description }) => ({ description, error: '' })),
+              catchError((error) => of({ description: '', error: apiError(error) })),
+            )),
+        takeUntilDestroyed(this.destroyRef),
+      ).subscribe(({ description, error }) => {
+        this.descriptionLoading.set(false);
+        const about = description.trim();
+        this.descriptionNotice.set(error || (this.form['repository'] && !about
+          ? 'Este repositório não possui descrição no GitHub. Informe-a manualmente.' : ''));
+        if (about && !this.descriptionEdited) {
+          this.form['description'] = uppercaseDescription(about).slice(0, 256);
+        }
+      });
     }
     if (this.kind === 'setups') {
       this.loadCpuCapacity();
@@ -297,14 +355,23 @@ export class RecordFormPage implements OnInit {
       const id = Number(this.route.snapshot.paramMap.get('id'));
       this.api.get(this.kind, id).subscribe({
         next: (record) => {
+          if (this.kind === 'setups' && record.hasInstances) {
+            this.editBlocked.set(true);
+            this.loading.set(false);
+            return;
+          }
           for (const field of this.formFields) {
             const value = String(record[field.key as keyof ContainerRecord] ?? '');
             this.form[field.key] = field.key === 'code'
               ? normalizeCode(value)
               : field.key === 'description' ? uppercaseDescription(value) : value;
           }
+          this.updateSetupCode();
+          this.updateImageCode();
           if (this.kind === 'images') {
             this.savedRepository = record.repository ?? '';
+            this.descriptionRepository = this.savedRepository;
+            this.descriptionEdited = !!this.form['description']?.trim();
             this.savedHasToken = !!record.hasToken;
             this.editingImageId = id;
             this.form['token'] = '';
@@ -331,8 +398,49 @@ export class RecordFormPage implements OnInit {
     }
   }
 
+  protected setupResourceChanged(field: string, value: string): void {
+    if (!this.automaticSetupCode || !['cpu', 'memory', 'port'].includes(field)) return;
+    this.form[field] = value;
+    this.updateSetupCode();
+  }
+
+  private updateSetupCode(): void {
+    if (!this.automaticSetupCode) return;
+    const parts: string[] = [];
+    const cpu = normalizeCode(this.form['cpu'] ?? '');
+    const memory = normalizeCode(this.form['memory'] ?? '');
+    const portParts = (this.form['port'] ?? '').trim().split(':');
+    const port = normalizeCode(portParts.length === 3 ? portParts[1] : portParts[0]);
+    if (cpu) parts.push(`CPU_${cpu}`);
+    if (memory) parts.push(`MEMORY_${memory}`);
+    if (port) parts.push(`PORT_${port}`);
+    this.form['code'] = parts.join('_');
+  }
+
+  protected automaticImageCode(): boolean {
+    return this.kind === 'images' && !!imageCodeFromRepository(this.form['repository'] ?? '');
+  }
+
+  private updateImageCode(): void {
+    if (this.kind !== 'images') return;
+    const code = imageCodeFromRepository(this.form['repository'] ?? '');
+    if (code) this.form['code'] = code;
+  }
+
   protected repositoryChanged(repository: string): void {
+    this.form['repository'] = repository;
+    if (repository !== this.descriptionRepository) {
+      this.descriptionRepository = repository;
+      this.descriptionEdited = false;
+      this.form['description'] = '';
+      this.descriptionNotice.set('');
+    }
+    this.updateImageCode();
     this.refreshBranches(repository, '');
+  }
+
+  protected descriptionChanged(): void {
+    if (this.kind === 'images') this.descriptionEdited = true;
   }
 
   protected privateChanged(checked: boolean): void {
@@ -358,6 +466,7 @@ export class RecordFormPage implements OnInit {
       ? this.editingImageId : undefined;
     const missingToken = isPrivate && !token && !imageId;
     this.branchLoading.set(!!repository.trim() && !missingToken);
+    this.descriptionLoading.set(!!repository.trim() && !missingToken);
     this.form['branch'] = selectedBranch;
     this.repositoryChanges.next({ repository: repository.trim(), selectedBranch, token, imageId, missingToken });
   }
@@ -498,6 +607,8 @@ export class RecordFormPage implements OnInit {
     if (this.saving() || (this.kind === 'setups' &&
       (this.cpuLoading() || this.cpuExceedsLimit() || this.memoryLoading() || this.memoryInvalidSelection()))
       || !this.branchValid()) return;
+    this.updateSetupCode();
+    this.updateImageCode();
     this.form['code'] = normalizeCode(this.form['code'] ?? '');
     if ('description' in this.form) {
       this.form['description'] = uppercaseDescription(this.form['description']);

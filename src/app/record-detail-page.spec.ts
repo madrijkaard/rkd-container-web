@@ -90,4 +90,50 @@ describe('RecordDetailPage', () => {
       confirm.mockRestore();
     }
   });
+
+  it('blocks setup editing while an instance exists and unlocks it after deletion', async () => {
+    await TestBed.configureTestingModule({
+      imports: [RecordDetailPage],
+      providers: [
+        provideRouter([]), provideHttpClient(), provideHttpClientTesting(),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: { data: { kind: 'setups' } },
+            paramMap: of(convertToParamMap({ id: '7' })),
+          },
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(RecordDetailPage);
+    const http = TestBed.inject(HttpTestingController);
+    const setup = {
+      id: 7, code: 'SERVER', image_id: 3, cpu: '1', memory: '512 MB',
+      hasInstances: true,
+      created_date: '2026-09-29T00:00:00Z', last_modified_date: '2026-09-29T00:00:00Z',
+    };
+    fixture.detectChanges();
+    http.expectOne('/api/setups/7/').flush(setup);
+    fixture.detectChanges();
+    http.expectOne('/api/setups/7/instances/').flush([{
+      id: 21, setup_id: 7, number: 1, code: 'SERVER-replica-1',
+      container_id: 'docker-id', port: '', created_date: '2026-09-29T00:00:00Z',
+    }]);
+    fixture.detectChanges();
+    const page = fixture.nativeElement as HTMLElement;
+    expect(page.querySelector<HTMLButtonElement>('.page-heading button[title]')?.disabled).toBe(true);
+    expect(page.querySelector('a[href="/setups/7/edit"]')).toBeNull();
+    expect(page.textContent).toContain('não pode ser editado enquanto tiver instâncias');
+
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    try {
+      (page.querySelector('.instance-delete') as HTMLButtonElement).click();
+      http.expectOne('/api/instances/21/').flush({ deleted: true });
+      http.expectOne('/api/setups/7/').flush({ ...setup, hasInstances: false });
+      fixture.detectChanges();
+      expect(page.querySelector('a[href="/setups/7/edit"]')).not.toBeNull();
+      http.verify();
+    } finally { confirm.mockRestore(); }
+  });
 });

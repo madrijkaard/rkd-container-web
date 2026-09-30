@@ -8,10 +8,11 @@ import {
   RESOURCE_CONFIG, ResourceKind,
 } from './container-api';
 import { highlightDockerfile } from './dockerfile-highlight';
+import { SetupInstances } from './setup-instances';
 
 @Component({
   selector: 'app-record-detail-page',
-  imports: [RouterLink],
+  imports: [RouterLink, SetupInstances],
   template: `
     @if (loading()) {
       <p class="status">Carregando registro...</p>
@@ -38,7 +39,11 @@ import { highlightDockerfile } from './dockerfile-highlight';
           @if (item.description) { <p class="muted">{{ item.description.toLocaleUpperCase('pt-BR') }}</p> }
         </div>
         <div class="actions">
-          <a class="button" [routerLink]="detailUrl(kind, item.id) + '/edit'">Editar</a>
+          @if (kind === 'setups' && (item.hasInstances || checkingSetupEdit())) {
+            <button class="button" type="button" disabled title="Exclua todas as instâncias para editar este setup">Editar</button>
+          } @else {
+            <a class="button" [routerLink]="detailUrl(kind, item.id) + '/edit'">Editar</a>
+          }
           <button class="button danger" type="button" [disabled]="deleting()" (click)="remove(item)">
             {{ deleting() ? 'Excluindo...' : 'Excluir' }}
           </button>
@@ -47,6 +52,9 @@ import { highlightDockerfile } from './dockerfile-highlight';
       </div>
 
       @if (actionError()) { <p class="status error" role="alert">{{ actionError() }}</p> }
+      @if (kind === 'setups' && item.hasInstances) {
+        <p class="status">Este setup não pode ser editado enquanto tiver instâncias. Exclua todas as instâncias para liberar a edição.</p>
+      }
 
       <section class="panel" aria-label="Dados do registro">
         <h2>Detalhes</h2>
@@ -78,6 +86,10 @@ import { highlightDockerfile } from './dockerfile-highlight';
           <div><dt>Última modificação</dt><dd>{{ formatDate(item.last_modified_date) }}</dd></div>
         </dl>
       </section>
+
+      @if (kind === 'setups') {
+        <app-setup-instances [setupId]="item.id" (instancesChanged)="refreshSetupEdit(item.id)" />
+      }
 
       @if (config.children; as childKind) {
         <section class="children-section" aria-label="{{ RESOURCE_CONFIG[childKind].plural }}">
@@ -145,6 +157,7 @@ export class RecordDetailPage implements OnInit {
   protected readonly error = signal('');
   protected readonly childrenError = signal('');
   protected readonly actionError = signal('');
+  protected readonly checkingSetupEdit = signal(false);
 
   ngOnInit(): void {
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
@@ -166,6 +179,23 @@ export class RecordDetailPage implements OnInit {
       error: (error) => {
         this.error.set(apiError(error));
         this.loading.set(false);
+      },
+    });
+  }
+
+  protected refreshSetupEdit(id: number): void {
+    this.checkingSetupEdit.set(true);
+    this.api.get('setups', id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (setup) => {
+        this.record.update((current) => current?.id === id
+          ? { ...current, hasInstances: setup.hasInstances } : current);
+        this.checkingSetupEdit.set(false);
+      },
+      error: () => {
+        // Keep editing unavailable until the setup status can be confirmed.
+        this.record.update((current) => current?.id === id
+          ? { ...current, hasInstances: true } : current);
+        this.checkingSetupEdit.set(false);
       },
     });
   }

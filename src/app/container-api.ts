@@ -23,6 +23,7 @@ export interface ContainerRecord {
   project_id?: number;
   environment_id?: number;
   image_id?: number;
+  hasInstances?: boolean;
 }
 
 export interface ProjectSetupRow {
@@ -32,9 +33,12 @@ export interface ProjectSetupRow {
   environment_code: string;
 }
 
-export interface ContainerCreationResult {
+export interface InstanceRecord extends ContainerRecord {
+  setup_id: number;
+  number: number;
   container_id: string;
   container_name: string;
+  port: string;
 }
 
 export interface CpuCapacity {
@@ -110,15 +114,17 @@ export function newUrl(kind: ResourceKind, parentId?: number): string {
 }
 
 export function apiError(error: HttpErrorResponse): string {
-  if (error.status === 0) return 'Não foi possível conectar ao Container Core. Verifique se o servidor Django está em execução.';
+  if (error.status === 0) return 'Não foi possível conectar ao Dockestra Core. Verifique se o servidor Django está em execução.';
   const body = error.error;
   if (body?.code === 'docker_unavailable') return 'O Docker está desligado ou indisponível. Inicie o Docker e tente novamente.';
   if (body?.code === 'invalid_resources') return 'CPU ou memória inválida. Revise os valores do setup.';
   if (body?.code === 'invalid_configuration') return body.error || 'Porta ou volume inválido. Revise o setup.';
   if (body?.code === 'invalid_definition') return 'A definição da imagem está vazia.';
   if (body?.code === 'docker_build_failed') return 'Não foi possível construir a imagem Docker. Revise a definição da imagem.';
+  if (['container_delete_failed', 'instance_name_conflict', 'instance_busy', 'port_unavailable'].includes(body?.code)) return body.error;
   if (body?.code === 'container_start_failed') return 'A imagem foi construída, mas não foi possível iniciar o container.';
   if (body?.code === 'associated_records') return 'Não é possível excluir este registro porque existem registros associados.';
+  if (body?.code === 'setup_has_instances') return 'Exclua todas as instâncias deste setup antes de editá-lo.';
   if (body?.code === 'authentication_required') return 'Faça login para continuar.';
   if (body?.code === 'permission_denied') return 'Seu usuário não tem permissão para usar esta operação.';
   if (['invalid_repository', 'repository_not_found', 'github_rate_limited', 'github_unavailable', 'github_invalid_token',
@@ -176,6 +182,15 @@ export class ContainerApi {
     return this.http.get<{ branches: string[] }>('/api/github/branches/', { params: { repository } });
   }
 
+  getGithubDescription(repository: string, token?: string, imageId?: number) {
+    if (token || imageId) {
+      return this.http.post<{ description: string }>('/api/github/description/', {
+        repository, ...(token ? { token } : { image_id: imageId }),
+      });
+    }
+    return this.http.get<{ description: string }>('/api/github/description/', { params: { repository } });
+  }
+
   getCpuCapacity() {
     return this.http.get<CpuCapacity>('/api/system/cpu/');
   }
@@ -192,8 +207,16 @@ export class ContainerApi {
     return this.http.get<ProjectSetupRow[]>(`/api/projects/${projectId}/setups/`);
   }
 
-  createContainer(setupId: number) {
-    return this.http.post<ContainerCreationResult>(`/api/setups/${setupId}/containers/`, {});
+  listInstances(setupId: number) {
+    return this.http.get<InstanceRecord[]>(`/api/setups/${setupId}/instances/`);
+  }
+
+  createInstance(setupId: number) {
+    return this.http.post<InstanceRecord>(`/api/setups/${setupId}/instances/`, {});
+  }
+
+  deleteInstance(instanceId: number) {
+    return this.http.delete<{ deleted: boolean }>(`/api/instances/${instanceId}/`);
   }
 
   listChildren(kind: ResourceKind, parentId: number) {

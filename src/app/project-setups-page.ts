@@ -31,11 +31,6 @@ import { apiError, ContainerApi, ContainerRecord, ProjectSetupRow } from './cont
         </div>
       </div>
 
-      @if (notification(); as message) {
-        <p class="status" [class.error]="notificationIsError()"
-           [attr.role]="notificationIsError() ? 'alert' : 'status'">{{ message }}</p>
-      }
-
       @if (setups().length === 0) {
         <div class="empty-state compact"><p>Nenhum setup cadastrado neste projeto.</p></div>
       } @else {
@@ -58,10 +53,6 @@ import { apiError, ContainerApi, ContainerRecord, ProjectSetupRow } from './cont
                   <td>
                     <div class="actions">
                       <a class="button" [routerLink]="'/setups/' + setup.id">Visualizar</a>
-                      <button class="button primary" type="button"
-                        [disabled]="creatingId() !== null" (click)="createContainer(setup)">
-                        {{ creatingId() === setup.id ? 'Criando...' : 'Criar container' }}
-                      </button>
                     </div>
                   </td>
                 </tr>
@@ -82,9 +73,6 @@ export class ProjectSetupsPage implements OnInit {
   protected readonly setups = signal<ProjectSetupRow[]>([]);
   protected readonly loading = signal(true);
   protected readonly loadError = signal('');
-  protected readonly notification = signal('');
-  protected readonly notificationIsError = signal(false);
-  protected readonly creatingId = signal<number | null>(null);
 
   ngOnInit(): void {
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
@@ -112,21 +100,4 @@ export class ProjectSetupsPage implements OnInit {
     });
   }
 
-  protected createContainer(setup: ProjectSetupRow): void {
-    if (this.creatingId() !== null) return;
-    this.creatingId.set(setup.id);
-    this.notification.set('');
-    this.api.createContainer(setup.id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (result) => {
-        this.notificationIsError.set(false);
-        this.notification.set(`Container ${result.container_name} criado para o setup ${setup.setup_code}.`);
-        this.creatingId.set(null);
-      },
-      error: (error) => {
-        this.notificationIsError.set(true);
-        this.notification.set(apiError(error));
-        this.creatingId.set(null);
-      },
-    });
-  }
 }
