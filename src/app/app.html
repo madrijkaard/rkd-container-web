@@ -1,8 +1,8 @@
 <header class="site-header">
   <div class="header-inner">
-    <a class="brand" routerLink="/projects" aria-label="Container Web - Projetos">
-      <span class="brand-mark">C</span>
-      <span>Container <strong>Web</strong></span>
+    <a class="brand" routerLink="/projects" aria-label="Dockestra Web - Projetos">
+      <img class="brand-mark" src="/dockestra-mark.png" alt="" width="42" height="42">
+      <span>Dock<strong>estra</strong></span>
     </a>
     @if (auth.username()) {
       <button class="button" type="button" (click)="logout()">Sair ({{ auth.username() }})</button>

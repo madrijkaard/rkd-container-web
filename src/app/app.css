@@ -32,14 +32,10 @@
 .brand strong { color: var(--header-accent); }
 
 .brand-mark {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
-  background: var(--brand-mark-bg);
-  color: var(--header-bg);
-  font-weight: 800;
+  display: block;
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
 }
 
 .theme-toggle {

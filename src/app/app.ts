@@ -6,7 +6,8 @@ import { AuthState } from './auth.service';
 import { ContainerApi } from './container-api';
 
 type Theme = 'light' | 'dark';
-const THEME_KEY = 'container-web-theme';
+const THEME_KEY = 'rkd-dockestra-web-theme';
+const LEGACY_THEME_KEY = 'container-web-theme';
 
 @Component({
   imports: [RouterLink, RouterOutlet],
@@ -47,7 +48,7 @@ export class App {
 
   private initialTheme(): Theme {
     try {
-      const saved = localStorage.getItem(THEME_KEY);
+      const saved = localStorage.getItem(THEME_KEY) ?? localStorage.getItem(LEGACY_THEME_KEY);
       if (saved === 'light' || saved === 'dark') return saved;
     } catch {
       // Fall back to the system preference when browser storage is unavailable.

@@ -7,7 +7,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "container-web": {
+    "rkd-dockestra-web": {
       "projectType": "application",
       "schematics": {},
       "root": "",
@@ -60,10 +60,10 @@
           },
           "configurations": {
             "production": {
-              "buildTarget": "container-web:build:production"
+              "buildTarget": "rkd-dockestra-web:build:production"
             },
             "development": {
-              "buildTarget": "container-web:build:development"
+              "buildTarget": "rkd-dockestra-web:build:development"
             }
           },
           "defaultConfiguration": "development"

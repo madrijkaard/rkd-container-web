@@ -40,7 +40,7 @@ function loadTurnstile(): Promise<void> {
       <div>
         <p class="eyebrow">ACESSO</p>
         <h1>Entrar</h1>
-        <p class="muted">Use uma conta de operador do Container Core.</p>
+        <p class="muted">Use uma conta de operador do Dockestra Core.</p>
       </div>
     </div>
     <form class="panel record-form" (ngSubmit)="submit()">
@@ -107,7 +107,7 @@ export class LoginPage implements OnInit, AfterViewInit, OnDestroy {
           }
         }
       },
-      error: () => this.error.set('Não foi possível conectar ao Container Core.'),
+      error: () => this.error.set('Não foi possível conectar ao Dockestra Core.'),
     });
   }
 

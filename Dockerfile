@@ -26,5 +26,5 @@ RUN if [ -s /tmp/rkd-build-ca.pem ]; then \
 
 FROM nginx:stable-alpine
 COPY docker/frontend.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist/container-web/browser/ /usr/share/nginx/html/
+COPY --from=build /app/dist/rkd-dockestra-web/browser/ /usr/share/nginx/html/
 EXPOSE 80

@@ -4,7 +4,7 @@ import { App } from './app';
 
 describe('App', () => {
   beforeEach(async () => {
-    localStorage.setItem('container-web-theme', 'light');
+    localStorage.setItem('rkd-dockestra-web-theme', 'light');
     await TestBed.configureTestingModule({
       imports: [App],
       providers: [provideRouter([])],
@@ -13,7 +13,7 @@ describe('App', () => {
   });
 
   afterEach(() => {
-    localStorage.removeItem('container-web-theme');
+    localStorage.removeItem('rkd-dockestra-web-theme');
     delete document.documentElement.dataset['theme'];
   });
 
@@ -27,7 +27,8 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('.brand')?.textContent).toContain('Container Web');
+    expect(compiled.querySelector('.brand')?.textContent).toContain('Dockestra');
+    expect(compiled.querySelector<HTMLImageElement>('.brand-mark')?.getAttribute('src')).toBe('/dockestra-mark.png');
     expect(compiled.querySelector('nav')).toBeNull();
     expect(compiled.querySelector('.theme-toggle')?.getAttribute('aria-label')).toBe('Ativar modo escuro');
   });
@@ -41,7 +42,7 @@ describe('App', () => {
     fixture.detectChanges();
 
     expect(document.documentElement.dataset['theme']).toBe('dark');
-    expect(localStorage.getItem('container-web-theme')).toBe('dark');
+    expect(localStorage.getItem('rkd-dockestra-web-theme')).toBe('dark');
     expect(button.getAttribute('aria-label')).toBe('Ativar modo claro');
     expect(button.getAttribute('aria-pressed')).toBe('true');
 
@@ -50,5 +51,14 @@ describe('App', () => {
     reopened.detectChanges();
     expect(reopened.nativeElement.querySelector('.theme-toggle').getAttribute('aria-label'))
       .toBe('Ativar modo claro');
+  });
+
+  it('restores a theme saved before the rename', () => {
+    localStorage.removeItem('rkd-dockestra-web-theme');
+    localStorage.setItem('container-web-theme', 'dark');
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    expect(document.documentElement.dataset['theme']).toBe('dark');
+    localStorage.removeItem('container-web-theme');
   });
 });
