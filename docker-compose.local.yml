@@ -2,6 +2,7 @@ name: rkd-web-local
 
 services:
   frontend:
+    container_name: rkd-dockestra-web-local-1
     image: rkd-web-local-frontend:latest
     build: .
     restart: unless-stopped
@@ -11,6 +12,7 @@ services:
           - rkd-frontend
 
   nginx:
+    container_name: nginx-local-1
     image: rkd-web-local-nginx:latest
     build:
       context: .

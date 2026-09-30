@@ -26,3 +26,6 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Runtime data (certificates and ACME challenges)
+/volumes/

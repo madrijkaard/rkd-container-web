@@ -1,6 +1,8 @@
-# Container Web
+<p align="center"><img src="docs/assets/dockestra-logo.png" alt="Dockestra" width="560"></p>
 
-Angular and TypeScript frontend for the Container platform. Users can create, view, update, and delete projects, environments, images, and setups. Each detail page lists its child records and provides a button to add another child.
+# rkd-dockestra-web
+
+Angular and TypeScript frontend for the Dockestra platform. Users can create, view, update, and delete projects, environments, images, and setups. Each detail page lists its child records and provides a button to add another child.
 
 Records with associated children cannot be deleted. The detail page shows a notification when the backend rejects deletion; delete the child records first.
 
@@ -13,11 +15,13 @@ Description is free text. Its letters are converted to uppercase while spaces, a
 
 The image detail page displays `definition` as Dockerfile code with highlighted instructions, line numbers, and horizontal scrolling for long commands. The original text remains unchanged.
 
-An image can optionally store a GitHub repository URL and branch. In the image form, entering a URL such as `https://github.com/madrijkaard/rkd-survivor-engine` loads the repository's branches into a selection box. For a private repository, select **É um repositório privado?** and enter a token with Contents read permission. The token field is enabled only when the checkbox is selected. The token is not shown again after saving; editing with an empty token field keeps the saved credential if the repository is unchanged. Changing the URL or token clears the branch selection. GitHub errors are reported in the form. When a container is created, the backend checks out that branch and uses its source as the Docker build context.
+An image can optionally store a GitHub repository URL and branch. In the image form, entering a URL such as `https://github.com/madrijkaard/rkd-survivor-engine` sets the image code to `RKD_SURVIVOR_ENGINE`, fills its description from the repository's GitHub About field, and loads the repository's branches into a selection box. The code is generated from the repository name in both creation and editing, with uppercase letters and underscores in place of hyphens; without a repository, it remains editable. The About text is converted to uppercase and can be edited. If GitHub has no About text or cannot be reached, enter the description manually. Opening an existing image preserves its saved description; changing the repository fetches the new About text. For a private repository, select **É um repositório privado?** and enter a token with Contents read and Metadata read permission. The token field is enabled only when the checkbox is selected. The token is not shown again after saving; editing with an empty token field keeps the saved credential if the repository is unchanged. Changing the URL or token clears the branch selection. GitHub errors are reported in the form. When a container is created, the backend checks out that branch and uses its source as the Docker build context.
 
-On a project detail page, **Visualizar setups** opens a table of that project's setups with their image and environment codes. Each row links to the setup detail page and has a **Criar container** action. The action asks Container Core to build the stored Dockerfile and start a container with the setup's CPU and memory limits, optional port mapping, and optional named volume. If Docker is unavailable, the page shows a Portuguese notification.
+On a project detail page, **Visualizar setups** opens a table of that project's setups with their image and environment codes. Open a setup to manage its instances on the same detail page. **Criar instância** builds the image and starts a replica, then adds a row containing its code, container ID, published port, and creation date. Instance names follow `<setup-code>-replica-<number>`, using the lowest available positive number. The trash icon removes the Docker container and then its database record; named volumes are preserved. There is no separate instance page. Docker failures are displayed in Portuguese without removing a row whose container could not be deleted.
 
-The setup form accepts `port` as `host_port:container_port`, for example `8000:8000`, and binds to `127.0.0.1` by default. To choose an explicit IPv4 bind address, use `IP:host_port:container_port`. The optional `volume` field uses `name:/absolute/container/path`, for example `backend_data:/data`. Leave either field empty when that setup does not need it.
+When creating or editing a setup, the Code field is disabled and generated from CPU, memory, and the optional host port. For example, `0.5`, `256 MB`, and `4173:4173` produce `CPU_05_MEMORY_256MB_PORT_4173`. An explicit bind IP is omitted from the code, and leaving the port empty omits the `PORT` segment. A setup with registered instances cannot be edited; the edit button and direct edit form remain unavailable until all its instances are deleted.
+
+The setup form accepts `port` as `host_port:container_port`, for example `8000:8000`, and binds to `127.0.0.1` by default. To choose an explicit IPv4 bind address, use `IP:host_port:container_port`. Replica 1 uses the configured host port; replica N uses `host_port + N - 1`, preserving the setup's bind IP and container port. For example, `8000:8000` uses host ports 8000, 8001, 8002. Each mapping is shown in its table row. Deleted replica numbers and their port offsets can be reused; existing containers keep their names and published ports. Occupied ports produce an error, and ports above 65535 are rejected. The optional `volume` field uses `name:/absolute/container/path`, for example `backend_data:/data`. Replicas share that named volume, so the application must support concurrent access. Leave either field empty when that setup does not need it.
 
 ## Requirements
 
@@ -26,20 +30,24 @@ The setup form accepts `port` as `host_port:container_port`, for example `8000:8
 
 ## Run locally
 
-Start Container Core on port `8000` and apply its Django migrations first. Then, from this repository:
+Start Dockestra Core on port `8000` and apply its Django migrations first. Then, from this repository:
 
 ```bash
 npm install
 npm start
 ```
 
-Open `http://localhost:4200/` and log in with a Django staff account created with `manage.py createsuperuser` or through the Django admin. The development server proxies `/api/` requests to Django using `proxy.conf.json`. For deployment, serve the app over HTTPS and forward the same path to Container Core.
+Open `http://localhost:4200/` and log in with a Django staff account created with `manage.py createsuperuser` or through the Django admin. The development server proxies `/api/` requests to Django using `proxy.conf.json`. For deployment, serve the app over HTTPS and forward the same path to Dockestra Core.
 
 ## Testar localmente com Docker
 
+Para reconstruir e recriar backend, frontend e Nginx locais após alterar qualquer um dos projetos, execute `bash refresh-local.sh` nesta raiz. O script localiza `../rkd-dockestra-core`, reconstrói as imagens com o código atual, recria os containers e aguarda a interface e a API responderem em `http://localhost:8080/`. Ele pode ser chamado de qualquer diretório e preserva a chave, o SQLite e os volumes. Para atualizar somente o backend, execute `bash refresh-local.sh` na raiz do projeto backend.
+
+Neste modo, os containers se chamam `rkd-dockestra-web-local-1` e `nginx-local-1`. No Compose da VPS, os nomes são `rkd-dockestra-web-1` e `nginx-1`. Os nomes são fixados com `container_name`: o sufixo `1` faz parte do nome e não aumenta automaticamente. Essa configuração permite uma instância de cada serviço por ambiente. Os comandos Compose continuam usando os serviços `frontend` e `nginx`, e a comunicação interna usa os aliases `rkd-frontend` e `rkd-backend`.
+
 Use Docker Desktop no modo **containers Linux**, com Docker Compose disponível. O script do backend pode gerar a chave pelo **Git Bash no Windows** (com OpenSSL disponível) ou pelo Ubuntu/WSL com a [integração Docker](https://docs.docker.com/desktop/features/wsl/) habilitada. Os comandos Compose também funcionam no PowerShell. Para melhor compatibilidade de permissões e volumes, prefira os clones no sistema de arquivos Linux do WSL.
 
-Primeiro, no diretório `rkd-container-core`, prepare a chave e inicie o backend:
+Primeiro, no diretório `rkd-dockestra-core`, prepare a chave e inicie o backend:
 
 ```bash
 bash configure-secret-key.sh --generate-only
@@ -60,11 +68,13 @@ docker compose -f docker-compose.local.yml ps
 docker compose -f docker-compose.local.yml logs -f nginx
 ```
 
-Abra **http://localhost:8080/**. O Compose local inicia frontend e Nginx, conectados à rede `rkd-local-network` criada pelo backend. Nginx usa `volumes/nginx/local.conf` e encaminha as chamadas `/api/` ao backend. A porta 8080 fica vinculada apenas à interface local da máquina. Não é necessário configurar `ACME_EMAIL`, certificado, DNS ou um `.env` do frontend para esse modo.
+Abra **http://localhost:8080/**. O Compose local inicia frontend e Nginx, conectados à rede `rkd-local-network` criada pelo backend. Nginx usa `docker/nginx/local.conf`, incluído na imagem, e encaminha as chamadas `/api/` ao backend. A porta 8080 fica vinculada apenas à interface local da máquina. Não é necessário configurar `ACME_EMAIL`, certificado, DNS ou um `.env` do frontend para esse modo. O frontend local não utiliza a pasta `volumes/`; apagá-la não remove as configurações necessárias para reconstruir as imagens.
 
 No Windows, separar `docker build` de `docker compose up --no-build` evita um possível erro de renomeação de arquivo temporário de metadados do Compose/Bake (`Identificador inválido`). Os nomes das imagens nos comandos correspondem aos definidos no Compose local.
 
-O backend local roda em desenvolvimento, com Turnstile desativado e cookies compatíveis com HTTP. Isso permite testar login, cadastros, branches e criação de containers no Docker local; o CAPTCHA e HTTPS de produção continuam no Compose da VPS. O banco local persiste em `rkd-container-core/volumes/sqlite/container_core.local.sqlite3`, com usuários próprios.
+A configuração local do Nginx preserva o cabeçalho `Host` completo, incluindo a porta `8080`, com `proxy_set_header Host $http_host`. Isso permite que o Django valide a origem do login sem desativar a proteção CSRF. Se alterar `docker/nginx/local.conf`, reconstrua a imagem `rkd-web-local-nginx:latest` e recrie o serviço `nginx` pelo Compose local.
+
+O backend local roda em desenvolvimento, com Turnstile desativado e cookies compatíveis com HTTP. Isso permite testar login, cadastros, branches e criação de containers no Docker local; o CAPTCHA e HTTPS de produção continuam no Compose da VPS. O banco local persiste em `rkd-dockestra-core/volumes/sqlite/rkd_dockestra_core.local.sqlite3`, com usuários próprios.
 
 Use sempre `-f docker-compose.local.yml` para subir, consultar ou parar esse ambiente. O Compose sem `-f` continua sendo a implantação para `sinan-pro.com` na VPS. Para parar os containers locais do frontend, execute `docker compose -f docker-compose.local.yml stop`; para parar o backend, execute o mesmo comando no diretório dele.
 
@@ -78,17 +88,19 @@ Quando há certificados extras, o Dockerfile os fornece ao Node.js com [NODE_EXT
 
 Este repositório tem um `docker-compose.yml` separado. Ele inicia três containers: frontend Angular estático, Nginx (porta de entrada HTTP/HTTPS) e Certbot (emissão e renovação do certificado). Os três entram na rede `rkd-network` criada pelo Compose do backend. O Nginx envia `/api/`, `/admin/` e `/static/` ao backend e as demais rotas ao frontend.
 
+As configurações e os scripts versionados ficam em `docker/nginx/`: `local.conf`, `http.conf`, `https.conf`, `cert-watcher.sh` e `certbot.sh`. Os Dockerfiles incluem as configurações do Nginx na imagem, e o Compose monta o script do Certbot a partir dessa pasta. `volumes/` contém apenas dados gerados na execução; o Compose cria os diretórios montados quando necessário. Não é preciso restaurar arquivos de `volumes/` pelo Git para instalar do zero. Na VPS, apagar essa pasta remove os certificados e obriga a emiti-los novamente.
+
 ### Pré-requisitos na VPS
 
 1. Ubuntu com SSH, Git, Docker Engine e plugin Docker Compose funcionando. Consulte a [instalação oficial do Docker no Ubuntu](https://docs.docker.com/engine/install/ubuntu/) e do [Compose](https://docs.docker.com/compose/install/linux/). Verifique com `sudo docker version` e `sudo docker compose version`. Node.js, npm, Nginx e Certbot **não precisam** ser instalados diretamente na VPS: eles são usados nos containers.
-2. Clone de `rkd-container-core` e `rkd-container-web` na VPS. Configure acesso Git antes do clone se algum repositório da aplicação for privado. Inicie [o backend primeiro](https://github.com/madrijkaard/rkd-container-core#deploy-on-the-ubuntu-vps-with-docker-compose), incluindo seu `.env` com `DJANGO_SECRET_KEY`, `TURNSTILE_SITE_KEY` e `TURNSTILE_SECRET_KEY`. Confirme que `sudo docker network inspect rkd-network` funciona.
+2. Clone de `rkd-dockestra-core` e `rkd-dockestra-web` na VPS. Configure acesso Git antes do clone se algum repositório da aplicação for privado. Inicie [o backend primeiro](https://github.com/madrijkaard/rkd-dockestra-core#deploy-on-the-ubuntu-vps-with-docker-compose), incluindo seu `.env` com `DJANGO_SECRET_KEY`, `TURNSTILE_SITE_KEY` e `TURNSTILE_SECRET_KEY`. Confirme que `sudo docker network inspect rkd-network` funciona.
 3. DNS A de **`sinan-pro.com`** apontando para o IPv4 público da VPS; se existir AAAA, use apenas um IPv6 que chegue à mesma VPS. TCP 80 e 443 liberados no firewall e no painel da Hostinger, sem outro serviço usando essas portas. A VPS precisa de saída para os servidores do Let's Encrypt. O Certbot usa a porta 80 para validar o domínio; enquanto o certificado não estiver pronto, o Nginx ainda não servirá o login por HTTPS.
 4. [Widget Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/get-started/widget-management/dashboard/) com hostname `sinan-pro.com` já criado. Configure as duas chaves no `.env` do backend; este frontend recebe a Site key pública pela API. A Secret key permanece apenas no backend e nunca deve ser colocada neste repositório ou neste Compose. Não é necessário migrar o DNS para a Cloudflare para usar o widget.
 5. Um endereço de email válido que você controla para o registro e os avisos do certificado Let's Encrypt (`ACME_EMAIL`).
 
 ### Instalação inicial do frontend
 
-Depois que o backend estiver no ar, execute no diretório `rkd-container-web` da VPS:
+Depois que o backend estiver no ar, execute no diretório `rkd-dockestra-web` da VPS:
 
 ```bash
 cp .env.example .env

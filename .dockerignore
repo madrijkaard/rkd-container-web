@@ -10,5 +10,4 @@ tmp/
 .env
 .env.*
 !.env.example
-volumes/nginx/acme/
-volumes/nginx/letsencrypt/
+volumes/

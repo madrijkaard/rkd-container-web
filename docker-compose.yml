@@ -1,5 +1,6 @@
 services:
   frontend:
+    container_name: rkd-dockestra-web-1
     build: .
     restart: unless-stopped
     networks:
@@ -8,6 +9,7 @@ services:
           - rkd-frontend
 
   nginx:
+    container_name: nginx-1
     build:
       context: .
       dockerfile: Dockerfile.proxy
@@ -32,7 +34,7 @@ services:
     depends_on:
       - nginx
     volumes:
-      - ./volumes/nginx/certbot.sh:/rkd/certbot.sh:ro
+      - ./docker/nginx/certbot.sh:/rkd/certbot.sh:ro
       - ./volumes/nginx/acme:/var/www/certbot
       - ./volumes/nginx/letsencrypt:/etc/letsencrypt
     networks:

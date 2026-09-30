@@ -1,8 +1,8 @@
 FROM nginx:stable-alpine
 
-COPY volumes/nginx/http.conf /etc/nginx/rkd/http.conf
-COPY volumes/nginx/https.conf /etc/nginx/rkd/https.conf
-COPY volumes/nginx/cert-watcher.sh /docker-entrypoint.d/40-rkd-cert-watcher.sh
+COPY docker/nginx/http.conf /etc/nginx/rkd/http.conf
+COPY docker/nginx/https.conf /etc/nginx/rkd/https.conf
+COPY docker/nginx/cert-watcher.sh /docker-entrypoint.d/40-rkd-cert-watcher.sh
 RUN chmod +x /docker-entrypoint.d/40-rkd-cert-watcher.sh
 
 EXPOSE 80 443
